@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>pyaw.pr - Terminal</title>
+
+<style>
+:root{
+  --bg:#0a0a0f;
+  --green:#00ff9c;
+  --green-dim:#00ff9c22;
+  --red:#ff3366;
+  --pink:#ff6b9d;
+  --gold:#ffd700;
+}
+
+*{box-sizing:border-box;}
+
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--green);
+  font-family:'Inter','Courier New',monospace;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  min-height:100vh;
+  padding:16px;
+  overflow-x:hidden;
+}
+
+.terminal{
+  width:100%;
+  max-width:560px;
+  border:1px solid var(--green-dim);
+  border-radius:14px;
+  padding:26px;
+  box-shadow:0 0 30px #00ff9c15, 0 0 60px #00ff9c08;
+  position:relative;
+  transition:box-shadow 0.5s;
+}
+
+.terminal.glow-red{box-shadow:0 0 40px #ff336633,0 0 80px #ff336611;}
+.terminal.glow-pink{box-shadow:0 0 40px #ff6b9d33,0 0 80px #ff6b9d11;}
+.terminal.glow-gold{box-shadow:0 0 40px #ffd70033,0 0 80px #ffd70011;}
+
+.header{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:18px;
+  font-size:13px;
+  opacity:0.6;
+  border-bottom:1px solid var(--green-dim);
+  padding-bottom:6px;
+}
+
+.total-clicks{
+  font-size:11px;
+  opacity:0.5;
+  font-style:italic;
+}
+
+.line{margin:16px 0 8px;font-size:14px;opacity:0.8;}
+
+.btn{
+  display:inline-block;
+  margin:5px 8px 0 0;
+  padding:7px 16px;
+  border:1px solid var(--green-dim);
+  border-radius:20px;
+  cursor:pointer;
+  transition:all 0.2s;
+}
+
+.btn:hover{border-color:var(--green);transform:translateY(-1px);}
+.btn:active{transform:scale(0.95);}
+.btn.active{
+  background:var(--green);
+  color:#000;
+  box-shadow:0 0 20px #00ff9c44;
+}
+
+.love{
+  margin-top:14px;
+  display:inline-block;
+  padding:9px 22px;
+  border:1px solid var(--green);
+  border-radius:30px;
+  cursor:pointer;
+  transition:all 0.3s;
+  position:relative;
+  overflow:hidden;
+}
+.love.disabled{opacity:0.3;pointer-events:none;}
+.love:hover{
+  background:var(--green);
+  color:#000;
+  transform:scale(1.03);
+  box-shadow:0 0 25px #00ff9c44;
+}
+.love:active{transform:scale(0.96);}
+
+.heart-particle{
+  position:absolute;
+  pointer-events:none;
+  font-size:16px;
+  animation:floatUp 0.8s ease-out forwards;
+}
+@keyframes floatUp{
+  0%{opacity:1;transform:translateY(0) scale(1);}
+  100%{opacity:0;transform:translateY(-40px) scale(0.3);}
+}
+
+.output-area{
+  margin-top:22px;
+  border-top:1px solid var(--green-dim);
+  padding-top:12px;
+  min-height:70px;
+}
+
+.cursor{
+  display:inline-block;
+  width:8px;
+  height:14px;
+  background:var(--green);
+  margin-left:4px;
+  animation:blink 1s infinite;
+}
+.cursor.typing{animation:none;}
+@keyframes blink{50%{opacity:0;}}
+
+.troll{
+  margin-top:14px;
+  font-size:32px;
+  opacity:0;
+  transform:scale(0.3) rotate(-15deg);
+  transition:all 0.6s;
+  text-align:center;
+  filter:blur(8px);
+}
+.troll.show{
+  opacity:1;
+  transform:scale(1) rotate(2deg);
+  filter:blur(0);
+}
+
+.reset{
+  margin-top:16px;
+  font-size:11px;
+  cursor:pointer;
+  color:var(--green-dim);
+}
+.reset:hover{color:var(--red);}
+
+.scanline{
+  position:fixed;
+  inset:0;
+  pointer-events:none;
+  background:linear-gradient(to bottom,transparent 50%,rgba(0,255,156,0.02) 51%);
+  background-size:100% 4px;
+}
+
+.confetti-container{
+  position:fixed;
+  top:0;left:0;
+  pointer-events:none;
+  z-index:1000;
+}
+
+@keyframes confettiFall{
+  0%{transform:translateY(0) rotate(0deg);opacity:1;}
+  100%{transform:translateY(100vh) rotate(var(--rot));opacity:0;}
+}
+</style>
+</head>
+
+<body>
+
+<div class="scanline"></div>
+<div class="confetti-container" id="confetti"></div>
+
+<div class="terminal" id="terminal">
+  <div class="header">
+    <span>⚡ pyaw.pr</span>
+    <span class="total-clicks" id="totalDisplay"></span>
+  </div>
+
+  <div class="line">▸ select gender</div>
+  <div>
+    <span class="btn" onclick="setGender('male',this)">👨 male</span>
+    <span class="btn" onclick="setGender('female',this)">👩 female</span>
+  </div>
+
+  <div class="line">▸ express your feeling</div>
+  <div class="love disabled" id="loveBtn" onclick="love()">💚 love</div>
+
+  <div class="output-area">
+    <span id="out">▸</span><span class="cursor" id="cursor"></span>
+  </div>
+
+  <div class="troll" id="troll">( ͡° ͜ʖ ͡°)</div>
+  <div class="reset" onclick="resetAll()">⟳ reset</div>
+</div>
+
+<script>
+const state={
+  gender:null,
+  count:0,
+  lock:false,
+  total:parseInt(localStorage.getItem('pyaw_total_love')||'0')
+};
+
+const outEl=document.getElementById('out');
+const cursor=document.getElementById('cursor');
+const terminal=document.getElementById('terminal');
+const troll=document.getElementById('troll');
+
+document.getElementById('totalDisplay').textContent='❤️ lifetime: '+state.total;
+
+/* AUDIO FIX */
+let audioCtx=null;
+function getAudioCtx(){
+  if(!audioCtx){
+    audioCtx=new (window.AudioContext||window.webkitAudioContext)();
+    if(audioCtx.state==='suspended') audioCtx.resume();
+  }
+  return audioCtx;
+}
+function beep(f,d){
+  const ctx=getAudioCtx();
+  const o=ctx.createOscillator();
+  const g=ctx.createGain();
+  o.frequency.value=f;
+  g.gain.value=0.05;
+  o.connect(g); g.connect(ctx.destination);
+  o.start(); o.stop(ctx.currentTime+d);
+}
+
+/* TYPE SAFE */
+let typingId=0;
+function typeOut(text){
+  const id=++typingId;
+  cursor.classList.add('typing');
+  let i=0;
+  function t(){
+    if(id!==typingId) return;
+    if(i<text.length){
+      outEl.textContent='▸ '+text.slice(0,i+1);
+      beep(1200,0.02);
+      i++; setTimeout(t,30);
+    }else cursor.classList.remove('typing');
+  }
+  t();
+}
+
+/* UI */
+function setGender(g,e){
+  state.gender=g;
+  document.querySelectorAll('.btn').forEach(b=>b.classList.remove('active'));
+  e.classList.add('active');
+  document.getElementById('loveBtn').classList.remove('disabled');
+
+  terminal.classList.remove('glow-gold','glow-pink');
+  if(g==='female'){
+    terminal.classList.add('glow-pink');
+    typeOut('interesting choice...');
+  }else{
+    terminal.classList.add('glow-gold');
+    typeOut('noted.');
+  }
+}
+
+function spawnHearts(){
+  const btn=document.getElementById('loveBtn');
+  for(let i=0;i<5;i++){
+    const h=document.createElement('span');
+    h.className='heart-particle';
+    h.textContent='💚';
+    h.style.left=Math.random()*80+'%';
+    btn.appendChild(h);
+    setTimeout(()=>h.remove(),800);
+  }
+}
+
+function spawnConfetti(){
+  const c=document.getElementById('confetti');
+  for(let i=0;i<30;i++){
+    const d=document.createElement('div');
+    d.style.cssText=`
+      position:fixed;
+      width:8px;height:8px;
+      background:#00ff9c;
+      left:${Math.random()*100}%;
+      top:-10px;
+      animation:confettiFall 3s linear forwards;
+    `;
+    d.style.setProperty('--rot',`${360+Math.random()*720}deg`);
+    c.appendChild(d);
+  }
+  setTimeout(()=>c.innerHTML='',4000);
+}
+
+function love(){
+  if(state.lock) return;
+  state.lock=true; setTimeout(()=>state.lock=false,300);
+
+  if(!state.gender){
+    typeOut('select gender first');
+    return;
+  }
+
+  spawnHearts();
+
+  if(state.gender==='male'){
+    typeOut("I'm not into that");
+    terminal.classList.add('glow-red');
+    return;
+  }
+
+  state.count++;
+  state.total++;
+  localStorage.setItem('pyaw_total_love',state.total);
+  document.getElementById('totalDisplay').textContent='❤️ lifetime: '+state.total;
+
+  if(state.count===1) typeOut('good choice ;)');
+  else if(state.count===5){
+    typeOut('you win');
+    spawnConfetti();
+  }
+  else typeOut('keep going...');
+}
+
+function resetAll(){
+  state.gender=null;
+  state.count=0;
+  document.querySelectorAll('.btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('loveBtn').classList.add('disabled');
+  terminal.classList.remove('glow-red','glow-gold','glow-pink');
+  typeOut('');
+}
+
+</script>
+</body>
+</html>
