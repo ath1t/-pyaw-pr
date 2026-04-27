@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>pyaw.pr - Terminal</title>
+
+<style>
+:root{
+  --bg:#0a0a0f;
+  --green:#00ff9c;
+  --green-dim:#00ff9c22;
+  --red:#ff3366;
+  --pink:#ff6b9d;
+  --gold:#ffd700;
+}
+
+*{box-sizing:border-box;}
+
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--green);
+  font-family:'Inter','Courier New',monospace;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  min-height:100vh;
+}
+
+.terminal{
+  width:100%;
+  max-width:560px;
+  border:1px solid var(--green-dim);
+  border-radius:14px;
+  padding:26px;
+  box-shadow:0 0 30px #00ff9c15;
+  transition:0.4s;
+}
+
+.terminal.glow-red{box-shadow:0 0 40px #ff336633;}
+.terminal.glow-pink{box-shadow:0 0 40px #ff6b9d33;}
+.terminal.glow-gold{box-shadow:0 0 40px #ffd70033;}
+
+.header{
+  display:flex;
+  justify-content:space-between;
+  font-size:13px;
+  opacity:0.6;
+  border-bottom:1px solid var(--green-dim);
+}
+
+.line{margin:16px 0 8px;}
+
+.btn{
+  padding:7px 16px;
+  border:1px solid var(--green-dim);
+  border-radius:20px;
+  cursor:pointer;
+}
+.btn.active{background:var(--green);color:#000;}
+
+.love{
+  margin-top:12px;
+  padding:9px 22px;
+  border:1px solid var(--green);
+  border-radius:30px;
+  cursor:pointer;
+}
+.love.disabled{opacity:0.3;pointer-events:none;}
+
+.output-area{margin-top:20px;}
+
+.cursor{
+  display:inline-block;
+  width:8px;
+  height:14px;
+  background:var(--green);
+  animation:blink 1s infinite;
+}
+.cursor.typing{animation:none;}
+@keyframes blink{50%{opacity:0;}}
+
+.troll{
+  margin-top:14px;
+  font-size:32px;
+  opacity:0;
+  transform:scale(0.5);
+  transition:0.4s;
+}
+.troll.show{opacity:1;transform:scale(1);}
+
+.confetti-container{
+  position:fixed;
+  inset:0;
+  pointer-events:none;
+}
+@keyframes confettiFall{
+  to{transform:translateY(100vh) rotate(var(--rot));opacity:0;}
+}
+</style>
+</head>
+
+<body>
+
+<div class="confetti-container" id="confetti"></div>
+
+<div class="terminal" id="terminal">
+  <div class="header">
+    <span>⚡ pyaw.pr</span>
+    <span id="totalDisplay"></span>
+  </div>
+
+  <div class="line">▸ select gender</div>
+  <span class="btn" onclick="setGender('male',this)">👨</span>
+  <span class="btn" onclick="setGender('female',this)">👩</span>
+
+  <div class="line">▸ express your feeling</div>
+  <div class="love disabled" id="loveBtn" onclick="love()">💚 love</div>
+
+  <div class="output-area">
+    <span id="out">▸</span><span class="cursor" id="cursor"></span>
+  </div>
+
+  <div class="troll" id="troll">( ͡° ͜ʖ ͡°)</div>
+</div>
+
+<script>
+const state={
+  gender:null,
+  count:0,
+  lock:false,
+  total:+localStorage.getItem('pyaw_total_love')||0
+};
+
+const out=document.getElementById('out');
+const cursor=document.getElementById('cursor');
+const terminal=document.getElementById('terminal');
+const troll=document.getElementById('troll');
+const confetti=document.getElementById('confetti');
+
+document.getElementById('totalDisplay').textContent='❤️ '+state.total;
+
+/* ================= SOUND ENGINE ================= */
+const Sound={
+  ctx:null,
+  master:null,
+
+  init(){
+    if(this.ctx) return;
+
+    this.ctx=new (window.AudioContext||window.webkitAudioContext)();
+    this.master=this.ctx.createGain();
+    this.master.gain.value=0.6;
+    this.master.connect(this.ctx.destination);
+
+    const buffer=this.ctx.createBuffer(1,1,22050);
+    const src=this.ctx.createBufferSource();
+    src.buffer=buffer;
+    src.connect(this.master);
+    src.start(0);
+  },
+
+  ensure(){
+    if(!this.ctx) this.init();
+    if(this.ctx.state==='suspended') this.ctx.resume();
+  },
+
+  beep(freq,dur,type='square',vol=0.05){
+    this.ensure();
+    const o=this.ctx.createOscillator();
+    const g=this.ctx.createGain();
+
+    o.type=type;
+    o.frequency.setValueAtTime(freq,this.ctx.currentTime);
+
+    g.gain.setValueAtTime(vol,this.ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001,this.ctx.currentTime+dur);
+
+    o.connect(g);
+    g.connect(this.master);
+
+    o.start();
+    o.stop(this.ctx.currentTime+dur);
+  },
+
+  click(){ this.beep(900,0.03,'square',0.03); },
+
+  typing(){
+    if(this._t && performance.now()-this._t<30) return;
+    this._t=performance.now();
+    this.beep(1200,0.015,'square',0.02);
+  },
+
+  success(){
+    this.beep(523,0.08);
+    setTimeout(()=>this.beep(659,0.08),80);
+    setTimeout(()=>this.beep(784,0.1),160);
+  },
+
+  error(){
+    this.beep(220,0.12,'sawtooth',0.06);
+    setTimeout(()=>this.beep(160,0.15,'sawtooth',0.06),120);
+  },
+
+  troll(){
+    [300,250,200,150].forEach((f,i)=>{
+      setTimeout(()=>this.beep(f,0.08,'square',0.05),i*70);
+    });
+  }
+};
+
+/* unlock audio */
+['pointerdown','touchstart','click'].forEach(evt=>{
+  document.addEventListener(evt,()=>Sound.init(),{once:true});
+});
+
+/* ================= TYPING ================= */
+let tid=0;
+function typeOut(t){
+  const id=++tid;
+  cursor.classList.add('typing');
+  let i=0;
+  function loop(){
+    if(id!==tid)return;
+    if(i<t.length){
+      out.textContent='▸ '+t.slice(0,++i);
+      Sound.typing();
+      setTimeout(loop,25+Math.random()*30);
+    }else cursor.classList.remove('typing');
+  }
+  loop();
+}
+
+/* ================= HELPERS ================= */
+function clearGlow(){terminal.classList.remove('glow-red','glow-pink','glow-gold');}
+function hideTroll(){troll.classList.remove('show');}
+
+/* ================= CONFETTI ================= */
+function spawnConfetti(){
+  confetti.innerHTML='';
+  for(let i=0;i<25;i++){
+    const d=document.createElement('div');
+    d.style.cssText=`
+      position:fixed;
+      width:8px;height:8px;
+      background:#00ff9c;
+      left:${Math.random()*100}%;
+      top:-10px;
+      animation:confettiFall 3s linear forwards;
+    `;
+    d.style.setProperty('--rot',Math.random()*720+'deg');
+    confetti.appendChild(d);
+  }
+  setTimeout(()=>confetti.innerHTML='',3500);
+}
+
+/* ================= UI ================= */
+function setGender(g,e){
+  Sound.click();
+  state.gender=g;
+
+  document.querySelectorAll('.btn').forEach(b=>b.classList.remove('active'));
+  e.classList.add('active');
+
+  document.getElementById('loveBtn').classList.remove('disabled');
+  hideTroll();
+  clearGlow();
+
+  if(g==='female'){
+    terminal.classList.add('glow-pink');
+    typeOut('interesting choice...');
+  }else{
+    terminal.classList.add('glow-gold');
+    typeOut('noted.');
+  }
+}
+
+function love(){
+  if(state.lock)return;
+  state.lock=true;
+  setTimeout(()=>state.lock=false,300);
+
+  if(!state.gender){
+    typeOut('select gender first');
+    Sound.error();
+    return;
+  }
+
+  hideTroll();
+
+  if(state.gender==='male'){
+    typeOut("I'm not into that");
+    clearGlow();
+    terminal.classList.add('glow-red');
+    Sound.error();
+    setTimeout(()=>{
+      troll.classList.add('show');
+      Sound.troll();
+    },500);
+    return;
+  }
+
+  state.count++;
+  state.total++;
+  localStorage.setItem('pyaw_total_love',state.total);
+  document.getElementById('totalDisplay').textContent='❤️ '+state.total;
+
+  if(state.count===5){
+    typeOut('you win');
+    spawnConfetti();
+    Sound.success();
+  }else{
+    typeOut('keep going...');
+    Sound.click();
+  }
+}
+</script>
+
+</body>
+</html>
